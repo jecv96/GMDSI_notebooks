@@ -26,3 +26,9 @@ tutorials/**/gpr_bo_template/
 
 # pixi
 .pixi/
+tutorials/**/worker_*/
+tutorials/**/pp.shp
+tutorials/**/pp.shx
+tutorials/**/pp.dbf
+tutorials/**/freyberg.k.ref
+tutorials/**/freyberg.rch.ref
