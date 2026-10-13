@@ -7,7 +7,7 @@ Esta guía explica cómo preparar, ejecutar y post-procesar una calibración con
 
 El ejemplo usa el modelo Freyberg con pilot points de la parte 1 (`part1_08_pilotpoints_run`, `part1_09_regularization`), así que conviene haber recorrido esos notebooks antes.
 
-> **Importante.** `pixi run get-exes` descarga e instala la suite PEST_HP (versión 18.7, solo Windows) junto con MODFLOW y PEST++. Los comandos de esta guía siguen el manual de PEST_HP 18 (`pest_hp_18.pdf`), que queda instalado en `.pixi\envs\default\share\doc\pest_hp`. Si cambia de versión, compruébelos con el manual de **esa** versión y con `pestchek`.
+> **Importante.** `pixi run get-exes` descarga e instala la suite PEST_HP (versión 18.7) y los verificadores `pestchek`, `tempchek` e `inschek` de PEST 18 (solo Windows), junto con MODFLOW y PEST++. Los comandos de esta guía siguen el manual de PEST_HP 18 (`pest_hp_18.pdf`), que queda instalado en `.pixi\envs\default\share\doc\pest_hp`. Si cambia de versión, compruébelos con el manual de **esa** versión y con `pestchek`.
 
 ---
 
@@ -89,26 +89,25 @@ Desde la carpeta del repo, en la terminal de VS Code:
 
 ```powershell
 pixi install
-pixi run get-exes      # MODFLOW 6/2005/NWT/USG, MODPATH 7, PEST++ and the PEST_HP suite
+pixi run get-exes      # MODFLOW 6/2005/NWT/USG, MODPATH 7, PEST++, PEST_HP and the PEST checkers
 pixi run check-exes    # every executable should show a path inside .pixi
 ```
 
-`get-exes` corre `etc/get_pest_hp.py`, que descarga el zip de la suite HP (versión fijada: `hp_suite_18.7.zip` de pesthomepage.org) y deja los `.exe` en la misma carpeta que `mf6.exe` y `pestpp-*.exe` (`.pixi\envs\default\Scripts`). Desde ahí están en el PATH de `pixi run ...`, `pixi shell` y del kernel de Jupyter del entorno, así que en el notebook basta con `PEST_HP_DIR = None`. Los manuales en PDF quedan en `.pixi\envs\default\share\doc\pest_hp`.
+`get-exes` corre `etc/get_pest_hp.py`, que descarga dos zips de pesthomepage.org (versiones fijadas): la suite HP (`hp_suite_18.7.zip`, se instalan todos sus programas) y la suite de PEST (`pest18.zip`, se instalan solo `pestchek`, `tempchek` e `inschek`). Deja los `.exe` en la misma carpeta que `mf6.exe` y `pestpp-*.exe` (`.pixi\envs\default\Scripts`). Desde ahí están en el PATH de `pixi run ...`, `pixi shell` y del kernel de Jupyter del entorno, así que en el notebook basta con `PEST_HP_DIR = None`. Los manuales en PDF quedan en `.pixi\envs\default\share\doc\pest_hp`.
 
 Otros usos de la tarea:
 
 | Comando | Para qué |
 |---|---|
-| `pixi run get-pest-hp` | instalar solo PEST_HP (si ya está la misma versión, no hace nada) |
+| `pixi run get-pest-hp` | instalar solo PEST_HP y los verificadores (si ya está la misma versión, no hace nada) |
 | `pixi run get-pest-hp --force` | reinstalarlo |
-| `pixi run get-pest-hp --zip C:\Descargas\hp_suite_18.7.zip` | instalar desde un zip descargado a mano (sin internet, proxy, etc.) |
-| `pixi run get-pest-hp --url <url>` | probar otra versión de la suite HP |
+| `pixi run get-pest-hp --pest-all` | instalar **todos** los programas de la suite de PEST (`parrep`, `svdaprep`, `predunc`, `genlinpred`, `jcoblank`, ...), no solo los verificadores |
+| `pixi run get-pest-hp --zip C:\Descargas\hp_suite_18.7.zip --pest-zip C:\Descargas\pest18.zip` | instalar desde zips descargados a mano (sin internet, proxy, etc.) |
+| `pixi run get-pest-hp --url <url>` / `--pest-url <url>` | probar otra versión de la suite HP / de PEST |
 
-Para cambiar la versión fija para todos, edite `PEST_HP_URL` en `etc/get_pest_hp.py`.
+Para cambiar las versiones fijas para todos, edite `PEST_HP_URL` y `PEST_URL` en `etc/get_pest_hp.py`. Los manuales de PEST (`pestman1.pdf`, `pestman2.pdf`) quedan junto a los de PEST_HP.
 
-> PEST_HP solo se distribuye para Windows. En Linux/macOS el script lo omite sin error.
->
-> `pestchek`, `tempchek` e `inschek` **no** vienen en la suite HP, sino en la suite de PEST (pesthomepage.org). Si la descarga, copie esos `.exe` en la misma carpeta `Scripts` o agréguelos al PATH.
+> PEST_HP y PEST solo se distribuyen para Windows. En Linux/macOS el script los omite sin error.
 
 ### 3.2 Alternativa: PEST_HP en otra carpeta
 Si prefiere tener PEST_HP fuera del entorno (por ejemplo en `C:\PEST_HP`):
@@ -459,7 +458,7 @@ Truco útil: con `NOPTMAX = -1` PEST_HP calcula solo la Jacobiana y termina. Esa
 | Muchas corridas fallidas | no convergencia o celdas secas | `DERFORGIVE`, bajar `RELPARMAX`/`FACPARMAX`, revisar el solver (IMS); vea en `case.rme` qué agente falla |
 | Un agente solo tiene fallas (aviso al inicio de cada iteración) | falta o está dañado un archivo en la carpeta de ese agente | revise esa carpeta (`cleanup=False`) |
 | El manager se detiene por versión de agente | `agent_hp` y `pest_hp` de versiones distintas | use ambos de la misma suite (`pixi run get-pest-hp --force`) |
-| `pixi run get-exes` falla en la descarga de PEST_HP | sin internet, proxy o cambió la dirección | descargue el zip a mano y use `pixi run get-pest-hp --zip <ruta>` |
+| `pixi run get-exes` falla en la descarga de PEST_HP o PEST | sin internet, proxy o cambió la dirección | descargue los zips a mano y use `pixi run get-pest-hp --zip <hp_suite zip> --pest-zip <pest zip>` |
 | `hp.read_ofr()` devuelve vacío | el `.ofr` aún no se escribió o tiene otro formato | abra `case.ofr`; como alternativa use `hp.read_rec_phi()` |
 
 ---

@@ -221,7 +221,7 @@ def run_pestchek(case, cwd, exe_dir=None):
     """
     exe = find_exe("pestchek", exe_dir) or find_exe("pestchek", cwd)
     if exe is None:
-        print("pestchek not found - download the PEST suite from pesthomepage.org to get it")
+        print("pestchek not found - install it into the pixi environment with: pixi run get-pest-hp")
         return None
     case = case.replace(".pst", "")
     out = sp.run([exe, case], cwd=cwd, capture_output=True, text=True)

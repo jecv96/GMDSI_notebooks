@@ -88,10 +88,11 @@ and you do not need to install python yourself.
    `.pixi` folder). It may take a while.
  - `pixi run get-exes` - downloads MODFLOW 6, MODPATH 7, MODFLOW-2005,
    MODFLOW-NWT, MODFLOW-USG (and its GSI build), the PEST++ suite and, on
-   Windows, the PEST_HP suite into the pixi environment (the `.pixi` folder).
-   PEST_HP is downloaded from pesthomepage.org by `etc/get_pest_hp.py`; if that
-   download fails, get the HP suite zip yourself and run
-   `pixi run get-pest-hp --zip <path to the zip>`.
+   Windows, the PEST_HP suite and the PEST checkers (pestchek, tempchek,
+   inschek) into the pixi environment (the `.pixi` folder). These two come
+   from pesthomepage.org via `etc/get_pest_hp.py`; if that download fails, get
+   the zips yourself and run
+   `pixi run get-pest-hp --zip <hp_suite zip> --pest-zip <pest zip>`.
 
 Check the executables arrived with `pixi run check-exes`. Start jupyter with
 `pixi run jupyter`.
@@ -112,7 +113,7 @@ Then execute these commands:
  - `conda activate gmdsitut`
  -  `get-modflow --release-id 29.0 --subset mf6,mp7,mf2005,mfnwt,mfusg,mfusg_gsi :python`
  -  `get-pestpp --release-id 5.2.27 :python`
- -  `python etc/get_pest_hp.py` (PEST_HP; Windows only)
+ -  `python etc/get_pest_hp.py` (PEST_HP and the PEST checkers; Windows only)
 
 Then start jupyter with `jupyter lab`.
 

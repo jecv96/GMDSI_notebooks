@@ -13,7 +13,7 @@
 # The pinned releases:
 #   MODFLOW-ORG/executables 29.0 - MODFLOW 6.7.0 and MODPATH 7.2.001
 #   usgs/pestpp 5.2.27           - the PEST++ suite
-#   PEST_HP suite 18.7           - pinned in etc/get_pest_hp.py (Windows only)
+#   PEST_HP suite 18.7, PEST 18  - pinned in etc/get_pest_hp.py (Windows only)
 #
 # Pin PEST++ explicitly rather than taking "latest": every usgs/pestpp release
 # since 5.2.16 is flagged a GitHub "prerelease", and the /releases/latest
