@@ -210,7 +210,21 @@ def prepare_pst_for_pest_hp(pst):
 
 
 def write_pst_for_pest_hp(pst, filename):
-    """Write `pst` as a version 1 control file (the only version PEST_HP reads)."""
+    """Write `pst` as a version 1 control file (the only version PEST_HP reads).
+
+    Also makes the "control data" section acceptable to PEST/pestchek:
+      - the 4th line (NTPLFLE NINSFLE PRECIS DPOINT ...) must hold 4 or 7
+        values; pyEMU writes NUMCOM without JACFILE and MESSFILE (5 values,
+        fine for PEST++), so these two are set to their default of 0;
+      - a negative NUMLAM (pyEMU's default, a BEOPEST convention) is made
+        positive. PEST_HP ignores NUMLAM, but pestchek warns about it.
+    """
+    cd = pst.control_data
+    # assigning them makes pyEMU write them
+    cd.jacfile = 0
+    cd.messfile = 0
+    if int(cd.numlam) < 0:
+        cd.numlam = abs(int(cd.numlam))
     pst.write(filename, version=1)
 
 
@@ -429,14 +443,18 @@ def load_results(master_dir, pst_name):
     """Load the PEST_HP results in `master_dir` into pyEMU objects.
 
     Returns (pst, par_df, jco): the control file with the final residuals
-    (case.rei) attached, the estimated parameters (case.par, or None if the
+    (case.rei, or case.res after a NOPTMAX=0 run) attached, the estimated parameters (case.par, or None if the
     run did not get that far) and the Jacobian (case.jco, or None).
     """
     case = pst_name.replace(".pst", "")
     pst = pyemu.Pst(os.path.join(master_dir, pst_name))
-    rei = os.path.join(master_dir, case + ".rei")
-    if os.path.exists(rei):
-        pst.set_res(rei)
+    # case.rei holds the best residuals of an inversion; with NOPTMAX=0
+    # PEST_HP writes only case.res
+    for ext in (".rei", ".res"):
+        res_file = os.path.join(master_dir, case + ext)
+        if os.path.exists(res_file):
+            pst.set_res(res_file)
+            break
     par_file = os.path.join(master_dir, case + ".par")
     par_df = pyemu.pst_utils.read_parfile(par_file) if os.path.exists(par_file) else None
     jco_file = os.path.join(master_dir, case + ".jco")
