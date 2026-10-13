@@ -7,7 +7,7 @@ Esta guía explica cómo preparar, ejecutar y post-procesar una calibración con
 
 El ejemplo usa el modelo Freyberg con pilot points de la parte 1 (`part1_08_pilotpoints_run`, `part1_09_regularization`), así que conviene haber recorrido esos notebooks antes.
 
-> **Importante.** El repo no incluye PEST_HP ni lo instala con pixi. Los comandos y switches de esta guía son los de uso habitual de PEST_HP, pero compruébelos siempre con el manual de **su** versión (viene en la descarga) y con `pestchek`.
+> **Importante.** `pixi run get-exes` descarga e instala la suite PEST_HP (versión 18.7, solo Windows) junto con MODFLOW y PEST++. Los comandos de esta guía siguen el manual de PEST_HP 18 (`pest_hp_18.pdf`), que queda instalado en `.pixi\envs\default\share\doc\pest_hp`. Si cambia de versión, compruébelos con el manual de **esa** versión y con `pestchek`.
 
 ---
 
@@ -20,7 +20,7 @@ El ejemplo usa el modelo Freyberg con pilot points de la parte 1 (`part1_08_pilo
 6. [Variables del archivo de control que más importan](#6-variables-del-archivo-de-control-que-más-importan)
 7. [Regularización de Tikhonov](#7-regularización-de-tikhonov)
 8. [Resultados y post-proceso](#8-resultados-y-post-proceso)
-9. [Reiniciar una corrida](#9-reiniciar-una-corrida)
+9. [Detener y reiniciar una corrida](#9-detener-y-reiniciar-una-corrida)
 10. [Problemas frecuentes](#10-problemas-frecuentes)
 11. [Lista de verificación para su propio modelo](#11-lista-de-verificación-para-su-propio-modelo)
 12. [Referencias](#12-referencias)
@@ -32,9 +32,13 @@ El ejemplo usa el modelo Freyberg con pilot points de la parte 1 (`part1_08_pilo
 PEST_HP es la versión de PEST de John Doherty (Watermark Numerical Computing) pensada para correr en paralelo en muchos núcleos o máquinas. Calibra con el mismo método **Gauss-Levenberg-Marquardt (GLM)** que PEST y PEST++GLM y lee el mismo archivo de control de PEST (`.pst`, versión 1).
 
 Frente al PEST "clásico" (serie o con BEOPEST/Parallel PEST), PEST_HP:
-- calcula en paralelo las derivadas (la Jacobiana) **y** las pruebas de lambda de cada iteración;
-- tolera corridas del modelo que fallan (`LAMFORGIVE`, `DERFORGIVE`), algo muy común en modelos no lineales (celdas secas, falta de convergencia);
-- reparte mejor las corridas entre agentes de distinta velocidad (lo registra en `case.rmr`).
+- calcula en paralelo las derivadas (la Jacobiana) **y** las pruebas de las actualizaciones de parámetros. En cada iteración elige él mismo varias lambdas de Marquardt (nunca menos de tres, según cuántos agentes tenga) y hace además una búsqueda lineal en cada dirección, todo en una sola tanda de corridas en paralelo;
+- tolera corridas del modelo que fallan: al probar actualizaciones de parámetros siempre (`LAMFORGIVE` queda activado internamente) y al calcular derivadas si usted pone `DERFORGIVE`. Esto es muy común en modelos no lineales (celdas secas, falta de convergencia);
+- asigna cada corrida al agente más rápido disponible, maneja agentes lentos o perdidos y lo registra en `case.rmr` y `case.rme`.
+
+PEST_HP **no** hace corridas en serie: siempre necesita al menos un agente. Según su manual, rinde mejor con **10 agentes o más**; con menos de 10 su desempeño puede bajar.
+
+La suite HP incluye otros programas que usan los mismos agentes: `pest_hp_mkl` (versión de `pest_hp` con la librería Intel MKL, más rápida con muchos parámetros u observaciones), `jactest_hp`, `pcost_hp`, `pwhisp_hp`, `rsi_hp`, `cmaes_hp` y las herramientas de ensembles `ensiprep`/`ensimod`/`postensiunc`. Están descritas en `hp_suite_18.pdf`.
 
 Cuándo elegir cada herramienta del repo:
 
@@ -64,7 +68,8 @@ PEST_HP y PEST++GLM resuelven el mismo problema. Cambian las opciones avanzadas 
 
 - **Manager (`pest_hp`)**: lee el `.pst`, decide qué corridas hacer, recibe los resultados y escribe todos los archivos de salida. No corre el modelo.
 - **Agentes (`agent_hp`)**: cada uno trabaja en **su propia copia completa** de la carpeta del modelo (modelo, `.tpl`, `.ins`, `.pst`, ejecutables, `forward_run.py`). Escriben los archivos de entrada con los parámetros que manda el manager, corren el modelo y leen las salidas con las instrucciones.
-- Los agentes pueden estar en la misma PC (`localhost`) o en otras PCs de la red.
+- Los agentes pueden estar en la misma PC (`localhost`) o en otras PCs de la red, y pueden lanzarse antes o después que el manager.
+- La versión de `agent_hp` tiene que ser la misma que la de `pest_hp`; si no, el manager se detiene con un mensaje de error.
 
 Archivos de entrada (iguales que para PEST/PEST++):
 
@@ -79,28 +84,50 @@ Archivos de entrada (iguales que para PEST/PEST++):
 
 ## 3. Instalación en Windows junto al entorno del repo
 
-### 3.1 Requisitos previos (lo que ya tiene)
-- El repo clonado y el entorno instalado: `pixi install` y `pixi run get-exes` (ver `README.md`).
-- Puede comprobarlo con `pixi run check-exes`.
+### 3.1 Instalar PEST_HP con pixi (recomendado)
+Desde la carpeta del repo, en la terminal de VS Code:
 
-### 3.2 Descargar PEST_HP
-1. Descargue PEST_HP desde https://pesthomepage.org (sección de descargas). Descargue también la **suite de PEST** si aún no la tiene: trae `pestchek`, `tempchek`, `inschek` y otras utilidades útiles.
-2. Descomprima en una carpeta **sin espacios**, por ejemplo `C:\PEST_HP`. Debería tener al menos `pest_hp.exe` y `agent_hp.exe`, además del manual en PDF.
-
-### 3.3 Hacer visibles los ejecutables
-Elija **una** de estas opciones:
-
-- **A. Indicar la carpeta en el notebook** (la más simple): en el notebook ponga `PEST_HP_DIR = r"C:\PEST_HP"`. El helper `hp.prep_pest_hp_bins()` copia los ejecutables a la carpeta plantilla.
-- **B. Agregarla al PATH de Windows**: *Configuración → Sistema → Acerca de → Configuración avanzada del sistema → Variables de entorno → Path → Nuevo → `C:\PEST_HP`*. Reinicie VS Code después.
-- **C. Solo para la sesión de PowerShell**:
-  ```powershell
-  $env:PATH = "C:\PEST_HP;" + $env:PATH
-  ```
-
-Compruébelo desde la terminal de VS Code:
 ```powershell
-where.exe pest_hp
-where.exe agent_hp
+pixi install
+pixi run get-exes      # MODFLOW 6/2005/NWT/USG, MODPATH 7, PEST++ and the PEST_HP suite
+pixi run check-exes    # every executable should show a path inside .pixi
+```
+
+`get-exes` corre `etc/get_pest_hp.py`, que descarga el zip de la suite HP (versión fijada: `hp_suite_18.7.zip` de pesthomepage.org) y deja los `.exe` en la misma carpeta que `mf6.exe` y `pestpp-*.exe` (`.pixi\envs\default\Scripts`). Desde ahí están en el PATH de `pixi run ...`, `pixi shell` y del kernel de Jupyter del entorno, así que en el notebook basta con `PEST_HP_DIR = None`. Los manuales en PDF quedan en `.pixi\envs\default\share\doc\pest_hp`.
+
+Otros usos de la tarea:
+
+| Comando | Para qué |
+|---|---|
+| `pixi run get-pest-hp` | instalar solo PEST_HP (si ya está la misma versión, no hace nada) |
+| `pixi run get-pest-hp --force` | reinstalarlo |
+| `pixi run get-pest-hp --zip C:\Descargas\hp_suite_18.7.zip` | instalar desde un zip descargado a mano (sin internet, proxy, etc.) |
+| `pixi run get-pest-hp --url <url>` | probar otra versión de la suite HP |
+
+Para cambiar la versión fija para todos, edite `PEST_HP_URL` en `etc/get_pest_hp.py`.
+
+> PEST_HP solo se distribuye para Windows. En Linux/macOS el script lo omite sin error.
+>
+> `pestchek`, `tempchek` e `inschek` **no** vienen en la suite HP, sino en la suite de PEST (pesthomepage.org). Si la descarga, copie esos `.exe` en la misma carpeta `Scripts` o agréguelos al PATH.
+
+### 3.2 Alternativa: PEST_HP en otra carpeta
+Si prefiere tener PEST_HP fuera del entorno (por ejemplo en `C:\PEST_HP`):
+- en el notebook ponga `PEST_HP_DIR = r"C:\PEST_HP"`, y `hp.prep_pest_hp_bins()` copiará los ejecutables a la carpeta plantilla; o
+- agregue esa carpeta al PATH de Windows y reinicie VS Code.
+
+Compruébelo con:
+```powershell
+pixi run python -c "import shutil; print(shutil.which('pest_hp'), shutil.which('agent_hp'))"
+```
+
+### 3.3 Otras versiones de MODFLOW
+`get-exes` también instala `mf2005`, `mfnwt`, `mfusg` y `mfusg_gsi` (release 29.0 de MODFLOW-ORG/executables) para usarlos con sus propios modelos. Para agregar otros programas de esa release (`zbud6`, `mt3dms`, `mt3dusgs`, `mp6`, `zonbud`, `gridgen`, ...), súmelos a `--subset` en la tarea `get-exes` de `pixi.toml` y a la lista de `check-exes`.
+
+Si su modelo usa alguno de ellos, recuerde copiarlo también a la carpeta plantilla, porque cada agente necesita su copia: `hbd.prep_bins()` solo copia los ejecutables de los tutoriales. Por ejemplo:
+```python
+import shutil
+# copy the MODFLOW-USG executable from the pixi environment into the template folder
+shutil.copy2(shutil.which('mfusg'), tmp_d)
 ```
 
 ### 3.4 Que los agentes encuentren Python y MODFLOW
@@ -175,7 +202,7 @@ hp.prepare_pst_for_pest_hp(pst)               # drop the "++" PEST++ options
 ```python
 pst.control_data.noptmax = 0                  # test run first
 hp.write_pst_for_pest_hp(pst, os.path.join(tmp_d, 'freyberg_hp.pst'))
-hp.prep_pest_hp_bins(tmp_d, exe_dir=r"C:\PEST_HP")   # copy pest_hp/agent_hp (+pestchek)
+hp.prep_pest_hp_bins(tmp_d)                   # copy pest_hp/agent_hp (+pestchek) from the PATH
 hp.run_pestchek('freyberg_hp', cwd=tmp_d)
 ```
 Corrija hasta que `pestchek` no informe **errores** (las advertencias conviene leerlas). Si tiene dudas con una plantilla o instrucción, use `tempchek` e `inschek` sobre ese archivo.
@@ -201,24 +228,24 @@ Con `NOPTMAX = 0` el modelo corre una vez con los valores iniciales. Si falla, e
 ```python
 pst.control_data.pestmode = 'estimation'
 pst.control_data.noptmax = 8
-pst.control_data.numlam = 6                     # lambdas tested in parallel
-pst.control_data.lamforgive = 'lamforgive'      # tolerate failed runs (lambda testing)
-pst.control_data.derforgive = 'derforgive'      # tolerate failed runs (derivatives)
-pst.control_data.jacupdate = 999                # Broyden Jacobian update
+pst.control_data.derforgive = 'derforgive'      # tolerate failed runs while filling the Jacobian
+pst.control_data.jacupdate = 999                # Broyden Jacobian updates (0 = none)
 hp.write_pst_for_pest_hp(pst, os.path.join(tmp_d, 'freyberg_hp.pst'))
 
-hp.start_pest_hp(tmp_d, 'freyberg_hp.pst', num_agents=8, master_dir='master_hp')
+hp.start_pest_hp(tmp_d, 'freyberg_hp.pst', num_agents=10, master_dir='master_hp')
 ```
 
+No hace falta ajustar `NUMLAM`, `RLAMBDA1`, `RLAMFAC`, `PHIRATSUF` ni `PHIREDLAM`: PEST_HP los ignora y elige las lambdas solo. Conviene dejarlos con valores razonables (los de pyEMU sirven) para que `pestchek` no se queje.
+
 Cuántos agentes usar:
-- Para empezar, uno por **núcleo físico** (`psutil.cpu_count(logical=False)`).
-- Cada iteración necesita unas `NPAR_adj` corridas para la Jacobiana más `NUMLAM` para las lambdas. Más agentes que parámetros ajustables no aceleran nada.
+- Para empezar, uno por **núcleo físico** (`psutil.cpu_count(logical=False)`). El manual recomienda 10 o más; si su PC tiene menos núcleos, sume agentes en otras PCs (sección 5.2).
+- Cada iteración necesita unas `NPAR_adj` corridas para la Jacobiana más una tanda de pruebas de actualización (aprox. una por agente). Más agentes que parámetros ajustables casi no aceleran el cálculo de la Jacobiana.
 - Si el modelo usa mucha RAM o disco, use menos agentes que núcleos.
 
 ### Paso 7: Resultados
 ```python
 pst_est, par_est, jco = hp.load_results('master_hp', 'freyberg_hp.pst')
-df_phi = hp.read_rec_phi('master_hp/freyberg_hp.rec')   # phi per iteration
+df_phi = hp.read_ofr('master_hp/freyberg_hp.ofr')       # phi per iteration (PEST_HP table)
 hbd.plot_1to1(pst_est)                                   # measured vs simulated
 ```
 Ver la [sección 8](#8-resultados-y-post-proceso).
@@ -264,10 +291,10 @@ Todas están en `* control data` y pyEMU las expone en `pst.control_data.<nombre
 |---|---|---|
 | `PESTMODE` | `estimation`, `regularization`, `prediction` | `estimation` con pocos parámetros; `regularization` con muchos |
 | `NOPTMAX` | iteraciones máximas (`0` = una corrida; `-1` = solo la Jacobiana) | `0` para probar, `-1` para sensibilidades, 8–30 para calibrar |
-| `RLAMBDA1`, `RLAMFAC` | lambda inicial y factor de cambio | por defecto (`20`, `-3`) suele ir bien |
-| `NUMLAM` | lambdas probadas por iteración (en paralelo en PEST_HP) | 5–10 y no más que el nº de agentes |
-| `JACUPDATE` | actualización de Broyden de la Jacobiana | `999` para aprovechar las corridas de lambda |
-| `LAMFORGIVE` / `DERFORGIVE` | seguir aunque fallen corridas del modelo | actívelos en modelos no lineales |
+| `RLAMBDA1`, `RLAMFAC`, `PHIRATSUF`, `PHIREDLAM`, `NUMLAM` | selección de lambdas en PEST | **PEST_HP los ignora** (elige las lambdas solo); déjelos con valores válidos para `pestchek` |
+| `JACUPDATE` | nº de actualizaciones de Broyden de la Jacobiana tras las pruebas de lambda (una segunda tanda de pruebas) | `999` = todas las posibles; `0` u omitido = ninguna. Con muchos agentes suele convenir `0` |
+| `LAMFORGIVE` | tolerar corridas fallidas al probar actualizaciones | PEST_HP lo activa siempre internamente |
+| `DERFORGIVE` | tolerar corridas fallidas al calcular derivadas | `derforgive` en modelos no lineales |
 | `RELPARMAX`, `FACPARMAX` | cambio máximo de parámetros por iteración | bájelos (p. ej. 3–5) si phi oscila |
 | `PHIREDSWH` | cuándo pasar a derivadas centrales | por defecto `0.1` |
 | `PHIREDSTP`, `NPHISTP`, `NPHINORED`, `RELPARSTP`, `NRELPAR` | criterios de parada | por defecto |
@@ -279,12 +306,32 @@ Ejemplo:
 ```python
 cd = pst.control_data
 cd.noptmax = 10
-cd.numlam = 6
 cd.relparmax = 5
 cd.facparmax = 5
-cd.lamforgive = 'lamforgive'
 cd.derforgive = 'derforgive'
 pst.parameter_groups.loc[:, 'derinc'] = 0.02
+```
+
+### 6.1 Variables propias de PEST_HP
+PEST_HP acepta variables adicionales que se escriben como `NOMBRE=valor` al final de ciertas líneas de `* control data` (PEST y BEOPEST no las aceptan). pyEMU no las escribe, así que se agregan editando el `.pst` después de `pst.write()`. Algunas útiles:
+
+| Variable | Línea de `* control data` | Qué hace |
+|---|---|---|
+| `UPTESTMIN=N` / `UPTESTLIM=N` | 6ª (la de `RLAMBDA1 ... NUMLAM [JACUPDATE]`) | mínimo / máximo de pruebas de actualización por iteración. La eficiencia es máxima si `UPTESTMIN` es múltiplo del nº de agentes |
+| `RUN_SLOW_FAC`, `RUN_ABANDON_FAC`, `WIN_MRUN_HOURS` | ver manual (sección 7.2) | manejo de corridas lentas o colgadas |
+| `JCOWARNTHRESH=1E20`, `JCOZEROTHRESH=1E30` | 8ª (la que empieza con `PHIREDSWH`) | avisar / poner en cero derivadas absurdas (corridas con fallas) |
+
+Ejemplo del manual, con `UPTESTMIN` en la 6ª línea y los umbrales en la 8ª:
+```
+* control data
+restart estimation
+     104      14      13       0       6
+     1     2 single  point  2   0   0
+ 10.0  -3.0  0.3  0.03  10 999  uptestmin=15
+ 10.0  10.0  0.001
+ 0.1  noaui jcowarnthresh=1.0E10 jcozerothresh=1.0E30
+ 30  0.005  4  4  0.005  4
+ 1  1  1
 ```
 
 ---
@@ -322,13 +369,15 @@ Archivos que deja PEST_HP en la carpeta del manager:
 
 | Archivo | Contenido | Cómo leerlo |
 |---|---|---|
-| `case.rec` | registro completo (phi por iteración, lambdas, parámetros, estadísticos, sensibilidades) | editor de texto; `hp.read_rec_phi()` para la historia de phi |
+| `case.rec` | registro completo (phi por iteración, lambdas, parámetros, estadísticos, sensibilidades) | editor de texto |
 | `case.par` | parámetros óptimos | `pyemu.pst_utils.read_parfile()`; `pst.parrep('case.par')` |
 | `case.rei` | residuos de la mejor corrida | `pst.set_res('case.rei')`, luego `pst.phi`, `pst.res`, `hbd.plot_1to1(pst)` |
 | `case.jco` | Jacobiana (binaria) | `pyemu.Jco.from_binary()` |
 | `case.sen` / `case.seo` | sensibilidades compuestas de parámetros / observaciones | editor de texto |
+| `case.ofr` | tabla de phi (total y por grupo; en `regularization`, phi de medición y de regularización) por iteración. Propio de PEST_HP | `hp.read_ofr()` |
 | `case.rmr` | registro de la gestión de corridas en paralelo | editor de texto (agentes caídos, tiempos) |
-| `case.rst`, `case.jac`, ... | datos para reiniciar | no se editan |
+| `case.rme` | eficiencia de cada agente (corridas, fallas, tiempos). Propio de PEST_HP | editor de texto u hoja de cálculo |
+| `case.rst`, `pest###.dap`, `pest###.dao`, ... | datos para reiniciar y cola de corridas en paralelo (pueden ser grandes) | no se editan; bórrelos al terminar si no va a reiniciar |
 
 ### 8.1 Ver el modelo calibrado
 ```python
@@ -361,20 +410,35 @@ Para el análisis de valor de los datos, también puede usar las utilidades clá
 
 ---
 
-## 9. Reiniciar una corrida
+## 9. Detener y reiniciar una corrida
 
-Con `RSTFLE = restart` (es el valor por defecto de pyEMU), PEST_HP guarda lo necesario para reiniciar en la carpeta del manager:
+**Detener:** `Ctrl+C` en la ventana de PEST_HP, o desde otra terminal abierta en la carpeta del manager:
+- `pstop`: detiene el manager de inmediato;
+- `pstopst`: detiene el manager después de escribir el estado actual en el `.rec`.
 
-| Comando | Reinicia... |
-|---|---|
-| `pest_hp case /r /h :4004` | desde el comienzo de la última iteración guardada |
-| `pest_hp case /j /h :4004` | usando la última Jacobiana completa (ahorra recalcularla) |
+Los agentes terminan al acabar la corrida que tengan en curso.
 
-Después vuelva a lanzar los agentes. Con el helper:
-```python
-hp.start_pest_hp(tmp_d, 'freyberg_hp.pst', num_agents=8, master_dir='master_hp', restart_flag='/j')
+**Reiniciar:** con `RSTFLE = restart` (es el valor por defecto de pyEMU), una corrida detenida (o cortada por un apagón) se retoma con el switch **`/s`**, que va **antes** de `/h`:
+
 ```
-Con `restart_flag`, la carpeta `master_hp` **no** se borra. El manual de PEST_HP describe otros switches de reinicio.
+pest_hp case /s /h :4004
+```
+
+Si se cortó mientras llenaba la Jacobiana, PEST_HP retoma exactamente donde iba y solo hace las corridas que faltaban. Si se cortó probando actualizaciones, repite esa tanda. Los agentes se relanzan con el comando de siempre (sin `/s`). Con el helper:
+```python
+hp.start_pest_hp(tmp_d, 'freyberg_hp.pst', num_agents=10, master_dir='master_hp', restart_flag='/s')
+```
+Con `restart_flag`, la carpeta `master_hp` **no** se borra.
+
+> Los archivos de reinicio de PEST/BEOPEST y de PEST_HP no son compatibles: una corrida empezada con uno no se puede terminar con el otro.
+
+Otros switches útiles:
+
+| Switch | Qué hace |
+|---|---|
+| `/i` | usa una Jacobiana (`.jco`) ya calculada en la primera iteración. PEST_HP pregunta el nombre del archivo, así que láncelo desde una terminal y no desde el helper |
+| `/hpstart` | lee un "hp starter file" (`case.hp`) creado antes con PEST serie (`pest case /hpstart`, una sola corrida del modelo). Así PEST_HP empieza directamente a llenar la Jacobiana en paralelo |
+| `/f` | modo de corridas en lote a partir de archivos de parámetros (ver manual, sección 4.3) |
 
 Truco útil: con `NOPTMAX = -1` PEST_HP calcula solo la Jacobiana y termina. Esa Jacobiana sirve para sensibilidades, identificabilidad y FOSM antes de calibrar.
 
@@ -392,8 +456,11 @@ Truco útil: con `NOPTMAX = -1` PEST_HP calcula solo la Jacobiana y termina. Esa
 | Error de lectura de una observación (instrucción) | la salida del modelo cambió de formato o el modelo falló | corra el modelo a mano en `worker_0` (`cleanup=False`) y revise con `inschek` |
 | phi no baja o sube y baja | derivadas ruidosas, parámetros sin sensibilidad, pesos mal balanceados | aumente `DERINC`, fije o agrupe parámetros insensibles (vea `case.sen`), revise `pst.phi_components` |
 | Parámetros pegados a los límites | sobreajuste o error conceptual del modelo | regularización, revisar la conceptualización y los límites |
-| Muchas corridas fallidas | no convergencia o celdas secas | `LAMFORGIVE`/`DERFORGIVE`, bajar `RELPARMAX`/`FACPARMAX`, revisar el solver (IMS) |
-| `hp.read_rec_phi()` devuelve vacío | el texto del `.rec` difiere en su versión | abra el `.rec` y ajuste los patrones del helper |
+| Muchas corridas fallidas | no convergencia o celdas secas | `DERFORGIVE`, bajar `RELPARMAX`/`FACPARMAX`, revisar el solver (IMS); vea en `case.rme` qué agente falla |
+| Un agente solo tiene fallas (aviso al inicio de cada iteración) | falta o está dañado un archivo en la carpeta de ese agente | revise esa carpeta (`cleanup=False`) |
+| El manager se detiene por versión de agente | `agent_hp` y `pest_hp` de versiones distintas | use ambos de la misma suite (`pixi run get-pest-hp --force`) |
+| `pixi run get-exes` falla en la descarga de PEST_HP | sin internet, proxy o cambió la dirección | descargue el zip a mano y use `pixi run get-pest-hp --zip <ruta>` |
+| `hp.read_ofr()` devuelve vacío | el `.ofr` aún no se escribió o tiene otro formato | abra `case.ofr`; como alternativa use `hp.read_rec_phi()` |
 
 ---
 
@@ -416,7 +483,8 @@ Truco útil: con `NOPTMAX = -1` PEST_HP calcula solo la Jacobiana y termina. Esa
 ## 12. Referencias
 
 - PEST y PEST_HP (descargas y manuales): https://pesthomepage.org
+- Manuales instalados por `pixi run get-exes`: `.pixi\envs\default\share\doc\pest_hp\pest_hp_18.pdf` y `hp_suite_18.pdf`.
 - Doherty, J. *PEST: Model-Independent Parameter Estimation, User Manual*, Parts I y II. Watermark Numerical Computing.
-- Doherty, J. *PEST_HP: PEST for Highly Parallelized Computing Environments*. Watermark Numerical Computing.
+- Doherty, J. *PEST_HP: PEST for Highly Parallelized Computing Environments* (versión 18). Watermark Numerical Computing.
 - Tutoriales GMDSI sin programación (incluyen ejemplos con PEST_HP): https://gmdsi.org/education/tutorials/
 - Notebooks de este repo relacionados: `part1_02_pest_setup`, `part1_08_pilotpoints_run`, `part1_09_regularization`, `part1_10_intro_to_fosm`, `part1_11_local_and_global_sensitivity`, `part2_01_pstfrom_pest_setup`.

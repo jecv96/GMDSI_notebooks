@@ -136,8 +136,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          get-modflow --release-id 29.0 --subset mf6,mp7 :python
+          get-modflow --release-id 29.0 --subset mf6,mp7,mf2005,mfnwt,mfusg,mfusg_gsi :python
           get-pestpp --release-id 5.2.27 :python
+          python etc/get_pest_hp.py
 
       - name: Check executables resolve inside the environment
         # A binary found OUTSIDE the env means something earlier on PATH is

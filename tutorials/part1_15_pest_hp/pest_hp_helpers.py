@@ -77,8 +77,9 @@ def prep_pest_hp_bins(dest_path, exe_dir=None, include_check_utils=True):
     if missing:
         raise FileNotFoundError(
             "PEST_HP executables not found: {0}\n"
-            "download PEST_HP from https://pesthomepage.org and either add its folder\n"
-            "to the PATH or pass that folder as `exe_dir`.".format(", ".join(missing))
+            "install them into the pixi environment with:\n"
+            "    pixi run get-pest-hp\n"
+            "or put the PEST_HP folder on the PATH, or pass it as `exe_dir`.".format(", ".join(missing))
         )
 
 
@@ -269,8 +270,8 @@ def start_pest_hp(
         pest_hp_exe / agent_exe: executable names or full paths.
         agent_takes_case: True -> "agent_hp case /h host:port"; set False if your
             agent_hp version only takes "/h host:port" (check the PEST_HP manual).
-        restart_flag: None for a fresh run, or a PEST restart switch such as "/r"
-            or "/j" to restart a previous run in `master_dir`.
+        restart_flag: None for a fresh run, or "/s" to resume an interrupted run
+            in `master_dir` (PEST_HP manual, section 8). Agents need no switch.
         hostname: name/IP the agents use to reach the manager.
         cleanup: remove the agent folders when PEST_HP finishes.
 
@@ -336,12 +337,61 @@ def start_pest_hp(
 _FLOAT = r"([-+]?\d*\.?\d+(?:[eEdD][-+]?\d+)?)"
 
 
+def read_ofr(ofr_file):
+    """Read the objective function record file (case.ofr) written by PEST_HP.
+
+    PEST_HP updates this table at the start of each iteration: phi (or, in
+    regularization mode, the measurement and regularization phi) and the phi
+    of each observation group, per iteration. It plays the role of PEST++'s
+    case.iobj. The table is parsed leniently (whitespace or comma separated,
+    header line starting with "iter"); an empty DataFrame is returned if no
+    table is found, in which case use read_rec_phi() instead.
+    """
+    if not os.path.exists(ofr_file):
+        print(f"{ofr_file} not found")
+        return pd.DataFrame()
+
+    def _split(line):
+        return [t for t in re.split(r"[,\s]+", line.strip()) if t]
+
+    def _is_number(t):
+        try:
+            float(t.replace("D", "E").replace("d", "e"))
+            return True
+        except ValueError:
+            return False
+
+    header, rows = None, []
+    with open(ofr_file, "r", errors="ignore") as f:
+        for line in f:
+            tokens = _split(line)
+            if not tokens:
+                continue
+            if header is None and tokens[0].lower().startswith("iter"):
+                header = [t.lower() for t in tokens]
+                continue
+            if all(_is_number(t) for t in tokens):
+                rows.append([float(t.replace("D", "E").replace("d", "e")) for t in tokens])
+    if not rows:
+        print(f"no table found in {ofr_file}; open it, or use read_rec_phi() on the .rec file")
+        return pd.DataFrame()
+    ncol = max(len(r) for r in rows)
+    rows = [r for r in rows if len(r) == ncol]
+    if header is None or len(header) != ncol:
+        header = ["iteration"] + [f"col_{i}" for i in range(1, ncol)]
+    df = pd.DataFrame(rows, columns=header)
+    df[header[0]] = df[header[0]].astype(int)
+    return df.set_index(header[0])
+
+
 def read_rec_phi(rec_file):
     """Read the objective function history from a PEST/PEST_HP run record (.rec) file.
 
-    Returns a DataFrame indexed by iteration with the columns that were found:
-    "phi" (estimation mode), "measurement_phi" and "regularization_phi"
-    (regularization mode). PEST++ writes this to case.iobj; PEST_HP does not.
+    A fallback for read_ofr(): it searches the "Starting phi ..." lines of the
+    run record, whose wording can differ between PEST versions. Returns a
+    DataFrame indexed by iteration with the columns that were found: "phi"
+    (estimation mode), "measurement_phi" and "regularization_phi"
+    (regularization mode).
     """
     patterns = {
         "phi": re.compile(r"starting phi for this iteration.*?:\s*" + _FLOAT, re.I),

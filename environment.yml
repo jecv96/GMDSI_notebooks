@@ -2,16 +2,18 @@
 #
 #     mamba env create -f environment.yml
 #     conda activate gmdsitut
-#     get-modflow --release-id 29.0 --subset mf6,mp7 :python
+#     get-modflow --release-id 29.0 --subset mf6,mp7,mf2005,mfnwt,mfusg,mfusg_gsi :python
 #     get-pestpp --release-id 5.2.27 :python
+#     python etc/get_pest_hp.py
 #
-# The two get-* commands are the same ones `pixi run get-exes` runs, with the
+# These are the same commands `pixi run get-exes` runs, with the
 # same pins. ":python" installs into this environment's own bin, so the
 # environment owns its binaries rather than sharing a directory in the repo.
 #
 # The pinned releases:
 #   MODFLOW-ORG/executables 29.0 - MODFLOW 6.7.0 and MODPATH 7.2.001
 #   usgs/pestpp 5.2.27           - the PEST++ suite
+#   PEST_HP suite 18.7           - pinned in etc/get_pest_hp.py (Windows only)
 #
 # Pin PEST++ explicitly rather than taking "latest": every usgs/pestpp release
 # since 5.2.16 is flagged a GitHub "prerelease", and the /releases/latest

@@ -66,10 +66,22 @@ install = { depends-on = ["get-exes"] }
 # since 5.2.16 is flagged a GitHub "prerelease", and the /releases/latest
 # endpoint skips prereleases - so "latest" would quietly install 5.2.16 from
 # December 2024 rather than the newest build.
+#
+# Besides mf6/mp7 (used by the tutorials), the MODFLOW-2005, MODFLOW-NWT and
+# MODFLOW-USG (plus its GSI build) executables of the same release are installed
+# for use with your own models.
+#
+# PEST_HP is not on GitHub, so get-modflow/get-pestpp cannot fetch it:
+# etc/get_pest_hp.py downloads the pinned HP suite zip from pesthomepage.org
+# into the same folder. PEST_HP is Windows-only; the script skips it elsewhere.
 get-exes = """
-get-modflow --release-id 29.0 --subset mf6,mp7 :python &&
-get-pestpp --release-id 5.2.27 :python
+get-modflow --release-id 29.0 --subset mf6,mp7,mf2005,mfnwt,mfusg,mfusg_gsi :python &&
+get-pestpp --release-id 5.2.27 :python &&
+python etc/get_pest_hp.py
 """
-check-exes = "python -c \"import shutil;[print(f'{n:<12}{shutil.which(n)}') for n in ['mf6','mp7','pestpp-glm','pestpp-ies','pestpp-sen','pestpp-opt','pestpp-da','pestpp-mou','pestpp-swp']]\""
+# only (re)install PEST_HP, e.g. `pixi run get-pest-hp --force` or
+# `pixi run get-pest-hp --zip <downloaded hp_suite zip>`
+get-pest-hp = "python etc/get_pest_hp.py"
+check-exes = "python -c \"import shutil;[print(f'{n:<12}{shutil.which(n)}') for n in ['mf6','mp7','mf2005','mfnwt','mfusg','mfusg_gsi','pestpp-glm','pestpp-ies','pestpp-sen','pestpp-opt','pestpp-da','pestpp-mou','pestpp-swp','pest_hp','agent_hp']]\""
 jupyter = "jupyter lab"
 test-notebooks = "python autotest/run_notebooks.py"
