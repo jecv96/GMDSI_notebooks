@@ -443,14 +443,18 @@ def load_results(master_dir, pst_name):
     """Load the PEST_HP results in `master_dir` into pyEMU objects.
 
     Returns (pst, par_df, jco): the control file with the final residuals
-    (case.rei) attached, the estimated parameters (case.par, or None if the
+    (case.rei, or case.res after a NOPTMAX=0 run) attached, the estimated parameters (case.par, or None if the
     run did not get that far) and the Jacobian (case.jco, or None).
     """
     case = pst_name.replace(".pst", "")
     pst = pyemu.Pst(os.path.join(master_dir, pst_name))
-    rei = os.path.join(master_dir, case + ".rei")
-    if os.path.exists(rei):
-        pst.set_res(rei)
+    # case.rei holds the best residuals of an inversion; with NOPTMAX=0
+    # PEST_HP writes only case.res
+    for ext in (".rei", ".res"):
+        res_file = os.path.join(master_dir, case + ext)
+        if os.path.exists(res_file):
+            pst.set_res(res_file)
+            break
     par_file = os.path.join(master_dir, case + ".par")
     par_df = pyemu.pst_utils.read_parfile(par_file) if os.path.exists(par_file) else None
     jco_file = os.path.join(master_dir, case + ".jco")

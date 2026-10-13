@@ -370,7 +370,7 @@ Archivos que deja PEST_HP en la carpeta del manager:
 |---|---|---|
 | `case.rec` | registro completo (phi por iteración, lambdas, parámetros, estadísticos, sensibilidades) | editor de texto |
 | `case.par` | parámetros óptimos | `pyemu.pst_utils.read_parfile()`; `pst.parrep('case.par')` |
-| `case.rei` | residuos de la mejor corrida | `pst.set_res('case.rei')`, luego `pst.phi`, `pst.res`, `hbd.plot_1to1(pst)` |
+| `case.rei` / `case.res` | residuos de la mejor corrida (con `NOPTMAX = 0` solo se escribe `case.res`) | `hp.load_results()` o `pst.set_res('case.rei')`, luego `pst.phi`, `pst.res`, `hbd.plot_1to1(pst)` |
 | `case.jco` | Jacobiana (binaria) | `pyemu.Jco.from_binary()` |
 | `case.sen` / `case.seo` | sensibilidades compuestas de parámetros / observaciones | editor de texto |
 | `case.ofr` | tabla de phi (total y por grupo; en `regularization`, phi de medición y de regularización) por iteración. Propio de PEST_HP | `hp.read_ofr()` |
