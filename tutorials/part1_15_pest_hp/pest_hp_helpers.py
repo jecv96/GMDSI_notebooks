@@ -210,7 +210,21 @@ def prepare_pst_for_pest_hp(pst):
 
 
 def write_pst_for_pest_hp(pst, filename):
-    """Write `pst` as a version 1 control file (the only version PEST_HP reads)."""
+    """Write `pst` as a version 1 control file (the only version PEST_HP reads).
+
+    Also makes the "control data" section acceptable to PEST/pestchek:
+      - the 4th line (NTPLFLE NINSFLE PRECIS DPOINT ...) must hold 4 or 7
+        values; pyEMU writes NUMCOM without JACFILE and MESSFILE (5 values,
+        fine for PEST++), so these two are set to their default of 0;
+      - a negative NUMLAM (pyEMU's default, a BEOPEST convention) is made
+        positive. PEST_HP ignores NUMLAM, but pestchek warns about it.
+    """
+    cd = pst.control_data
+    # assigning them makes pyEMU write them
+    cd.jacfile = 0
+    cd.messfile = 0
+    if int(cd.numlam) < 0:
+        cd.numlam = abs(int(cd.numlam))
     pst.write(filename, version=1)
 
 
